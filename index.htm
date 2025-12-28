@@ -1,0 +1,388 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Falling Leaves</title>
+    <style>
+        :root {
+            --primary: #4a7c59;
+            --dead-brown: #7a5031;
+            --dead-tan: #a67c52;
+            --extra-color: #d63031;
+        }
+
+        * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            margin: 0; padding: 0; overflow: hidden;
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(to bottom, #82ccdd, #60a3bc);
+            height: 100vh; width: 100vw;
+        }
+
+        /* --- Screens --- */
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 10;
+        }
+        .screen.active { display: flex; }
+
+        #menu-screen { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); }
+
+        .btn {
+            background: var(--primary); color: white; border: none;
+            padding: 16px 30px; font-size: 1.1rem; margin: 8px;
+            border-radius: 15px; cursor: pointer; width: 80%; max-width: 300px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1); font-weight: bold;
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-extra { background: var(--extra-color); }
+        .btn-scores { background: #636e72; }
+        .btn-new { background: #0984e3; box-shadow: 0 4px 10px rgba(9, 132, 227, 0.3); }
+
+        /* --- UI Controls --- */
+        #game-ui {
+            position: absolute; top: 0; left: 0; width: 100%; padding: 15px;
+            display: flex; justify-content: space-between; align-items: center;
+            z-index: 30; pointer-events: none;
+        }
+        .ui-btn {
+            background: white; border-radius: 12px; width: 45px; height: 45px;
+            display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.15); cursor: pointer; pointer-events: auto;
+        }
+        .ui-center {
+            background: rgba(255,255,255,0.95); padding: 8px 18px;
+            border-radius: 25px; font-weight: bold; color: #2d3436;
+            display: flex; align-items: center; gap: 10px; pointer-events: auto;
+        }
+
+        /* --- Leaves --- */
+        .leaf {
+            position: absolute; width: 65px; height: 65px;
+            cursor: pointer; border-radius: 2px 50px 2px 50px;
+            z-index: 5;
+        }
+
+        /* Alive Textures */
+        .leaf-green { background: linear-gradient(135deg, #2ecc71, #27ae60); border: 2px solid #1e8449; }
+        .leaf-orange { background: linear-gradient(135deg, #e67e22, #d35400); border: 2px solid #a04000; }
+        .leaf-red { background: linear-gradient(135deg, #e74c3c, #c0392b); border: 2px solid #922b21; }
+        .leaf-yellow { background: linear-gradient(135deg, #f1c40f, #f39c12); border: 2px solid #b7950b; }
+
+        /* DEAD BROWN LEAF */
+        .leaf-dead { 
+            background: linear-gradient(135deg, var(--dead-brown), var(--dead-tan)); 
+            border: 2px solid #4d331f;
+            border-radius: 10px 40px 10px 40px;
+        }
+
+        .leaf::after {
+            content: ''; position: absolute; width: 100%; height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg width='30' height='30' viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 30 L30 0 M15 0 L15 30' stroke='rgba(0,0,0,0.1)' stroke-width='1' fill='none'/%3E%3C/svg%3E");
+            opacity: 0.4; border-radius: inherit;
+        }
+
+        @keyframes fall {
+            0% { top: -100px; transform: rotate(0deg); }
+            100% { top: 110vh; transform: rotate(360deg); }
+        }
+
+        /* --- Score Screen --- */
+        #scores-screen h2 {
+            margin-top: 70px; margin-bottom: 10px;
+        }
+
+        /* Filter Tabs */
+        .score-filters {
+            display: flex; gap: 10px; margin-bottom: 15px;
+        }
+        .filter-btn {
+            padding: 8px 16px; border-radius: 20px; border: none;
+            background: rgba(0,0,0,0.1); color: #444; font-weight: bold; cursor: pointer;
+        }
+        .filter-btn.active {
+            background: var(--primary); color: white;
+        }
+
+        #score-list {
+            width: 100%; flex: 1; overflow-y: auto;
+            display: flex; flex-direction: column; align-items: center;
+            padding-bottom: 30px;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        #score-list::-webkit-scrollbar { display: none; }
+
+        .score-card {
+            padding: 15px; margin: 8px; border-radius: 15px;
+            display: flex; justify-content: space-between; align-items: center;
+            width: 90%; max-width: 320px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15); flex-shrink: 0;
+            color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            animation: popIn 0.3s ease;
+        }
+        @keyframes popIn { from {transform: scale(0.9); opacity: 0;} to {transform: scale(1); opacity: 1;} }
+
+        .card-easy { background: linear-gradient(135deg, #11998e, #38ef7d); }
+        .card-full { background: linear-gradient(135deg, #ff9966, #ff5e62); }
+        .card-extra { background: linear-gradient(135deg, #8E2DE2, #4A00E0); }
+
+        /* --- Modal --- */
+        #modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); display: none;
+            justify-content: center; align-items: center; z-index: 100;
+        }
+        .modal { background: white; padding: 25px; border-radius: 20px; text-align: center; width: 85%; max-width: 320px; }
+        .modal-btns { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; margin-top: 15px; }
+        .modal-btns button { width: 100%; margin: 0; }
+
+    </style>
+</head>
+<body>
+
+    <div id="menu-screen" class="screen active">
+        <h1 style="color:var(--primary); font-size: 3rem; margin:0;">Falling Leaves</h1>
+        <p style="color:#666; margin-bottom: 30px;">Catch the right leaves!</p>
+        <button class="btn" onclick="startGame('easy')">Easy Mode</button>
+        <button class="btn" onclick="startGame('full')">Full Game</button>
+        <button class="btn btn-extra" onclick="startGame('extra')">Extra Game</button>
+        <button class="btn btn-scores" onclick="showHighScores('best')">High Scores</button>
+    </div>
+
+    <div id="scores-screen" class="screen" style="background: #f1f2f6; justify-content: flex-start;">
+        <div style="position:absolute; top:20px; left:20px; z-index:50;" class="ui-btn" onclick="goToMenu()">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </div>
+        <div style="position:absolute; top:20px; right:20px; z-index:50;" class="ui-btn" onclick="clearScores()" title="Reset All">
+             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="red" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        </div>
+        
+        <h2>High Scores</h2>
+        
+        <div class="score-filters">
+            <button id="btn-filter-best" class="filter-btn active" onclick="renderScoreList('best')">Best (2+)</button>
+            <button id="btn-filter-all" class="filter-btn" onclick="renderScoreList('all')">All History</button>
+        </div>
+
+        <div id="score-list">
+            </div>
+    </div>
+
+    <div id="game-screen" class="screen">
+        <div id="game-ui">
+            <div class="ui-btn" onclick="goToMenu()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </div>
+            <div class="ui-center">
+                <div id="target-box" style="display:none; align-items:center;">
+                    <div id="target-visual" class="leaf" style="position:relative; width:20px; height:20px; margin-right:8px;"></div>
+                </div>
+                Score: <span id="score-val">0</span>
+            </div>
+            <div class="ui-btn" onclick="startGame(gameState.mode)">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </div>
+        </div>
+        <div id="game-container" style="width:100%; height:100%;"></div>
+    </div>
+
+    <div id="modal-overlay">
+        <div class="modal">
+            <h2 id="modal-title" style="margin-top:0;">Game Over!</h2>
+            <p id="modal-msg" style="color:#555;"></p>
+            <h1 id="final-score" style="font-size:3.5rem; margin:10px 0;">0</h1>
+            
+            <div class="modal-btns">
+                <button class="btn btn-new" onclick="startGame(gameState.mode)">Play Again</button>
+                <button class="btn btn-scores" onclick="showHighScores('best')">High Scores</button>
+                <button class="btn" style="background:#b2bec3; color:#2d3436;" onclick="closeModal()">Main Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let gameState = { active: false, score: 0, mode: 'easy', target: null, timer: null };
+        const colors = ['leaf-green', 'leaf-orange', 'leaf-red', 'leaf-yellow'];
+
+        function startGame(mode) {
+            hideAll();
+            document.getElementById('game-screen').classList.add('active');
+            gameState.active = true;
+            gameState.score = 0;
+            gameState.mode = mode;
+            document.getElementById('score-val').innerText = '0';
+            document.getElementById('game-container').innerHTML = '';
+
+            if (mode === 'easy') {
+                document.getElementById('target-box').style.display = 'none';
+            } else {
+                document.getElementById('target-box').style.display = 'flex';
+                gameState.target = colors[Math.floor(Math.random() * colors.length)];
+                document.getElementById('target-visual').className = 'leaf ' + gameState.target;
+            }
+            loop();
+        }
+
+        function loop() {
+            if (!gameState.active) return;
+            spawn();
+            let spd = (gameState.mode === 'extra') ? 600 : 1100;
+            gameState.timer = setTimeout(loop, Math.max(300, spd - (gameState.score * 5)));
+        }
+
+        function spawn() {
+            const leaf = document.createElement('div');
+            const rand = Math.random();
+            let type;
+
+            if (gameState.mode === 'easy') {
+                type = (rand < 0.3) ? 'leaf-dead' : 'leaf-green';
+            } else {
+                if (rand < 0.2) type = 'leaf-dead';
+                else type = colors[Math.floor(Math.random() * colors.length)];
+            }
+
+            leaf.className = `leaf ${type}`;
+            if (gameState.mode === 'extra') { leaf.style.width = '45px'; leaf.style.height = '45px'; }
+            
+            leaf.style.left = Math.random() * (window.innerWidth - 60) + 'px';
+            let dur = (gameState.mode === 'extra' ? 2 : 3.5) - (Math.min(1.5, gameState.score * 0.04));
+            leaf.style.animation = `fall ${dur}s linear forwards`;
+
+            const catchEvent = (e) => {
+                e.preventDefault();
+                if (!gameState.active) return;
+                
+                let ok = (gameState.mode === 'easy' && type !== 'leaf-dead') || 
+                         (gameState.mode !== 'easy' && type === gameState.target);
+
+                if (ok) {
+                    gameState.score++;
+                    document.getElementById('score-val').innerText = gameState.score;
+                    leaf.remove();
+                } else {
+                    gameOver(type === 'leaf-dead' ? "You caught a dead brown leaf!" : "Wrong color!");
+                }
+            };
+
+            leaf.addEventListener('touchstart', catchEvent);
+            leaf.addEventListener('mousedown', catchEvent);
+
+            leaf.addEventListener('animationend', () => {
+                if (gameState.active) {
+                    let wasTarget = (gameState.mode === 'easy' && type !== 'leaf-dead') || 
+                                    (gameState.mode !== 'easy' && type === gameState.target);
+                    if (wasTarget) gameOver("An alive leaf fell!");
+                    else leaf.remove();
+                }
+            });
+
+            document.getElementById('game-container').appendChild(leaf);
+        }
+
+        function gameOver(msg) {
+            gameState.active = false;
+            clearTimeout(gameState.timer);
+            
+            // Save ALL scores now
+            saveScore(gameState.mode, gameState.score);
+
+            document.getElementById('modal-msg').innerText = msg;
+            document.getElementById('final-score').innerText = gameState.score;
+            document.getElementById('modal-overlay').style.display = 'flex';
+        }
+
+        function saveScore(m, s) {
+            let data = JSON.parse(localStorage.getItem('leaf_hiscores_v2') || '[]');
+            data.push({ m, s, d: new Date().toLocaleDateString() });
+            // Keep up to 100 entries so history works well
+            if (data.length > 100) data.shift(); 
+            localStorage.setItem('leaf_hiscores_v2', JSON.stringify(data));
+        }
+
+        function clearScores() {
+            if(confirm("Delete all score history?")) {
+                localStorage.removeItem('leaf_hiscores_v2');
+                renderScoreList('best');
+            }
+        }
+
+        function showHighScores(filterType) {
+            hideAll();
+            document.getElementById('scores-screen').classList.add('active');
+            renderScoreList(filterType);
+        }
+
+        function renderScoreList(type) {
+            const list = document.getElementById('score-list');
+            list.innerHTML = '';
+
+            // Update Tabs UI
+            document.getElementById('btn-filter-best').className = type === 'best' ? 'filter-btn active' : 'filter-btn';
+            document.getElementById('btn-filter-all').className = type === 'all' ? 'filter-btn active' : 'filter-btn';
+
+            let data = JSON.parse(localStorage.getItem('leaf_hiscores_v2') || '[]');
+            
+            if (type === 'best') {
+                // Logic: Only scores >= 2, Sorted by Score DESC
+                data = data.filter(x => x.s >= 2);
+                data.sort((a,b) => b.s - a.s);
+            } else {
+                // Logic: All scores, Sorted by Difficulty (Extra > Full > Easy)
+                const diffRank = { 'extra': 3, 'full': 2, 'easy': 1 };
+                data.sort((a,b) => {
+                    let rA = diffRank[a.m];
+                    let rB = diffRank[b.m];
+                    if(rA !== rB) return rB - rA; // Higher rank first
+                    return b.s - a.s; // Then score
+                });
+            }
+
+            if (data.length === 0) {
+                if (type === 'best') {
+                    list.innerHTML = '<p style="color:#777; margin-top:50px; text-align:center;">No high scores yet.<br>(Score at least 2 to appear here)</p>';
+                } else {
+                    list.innerHTML = '<p style="color:#777; margin-top:50px; text-align:center;">No games played yet.</p>';
+                }
+            } else {
+                data.forEach(x => {
+                    let cssClass = 'card-easy';
+                    let prettyName = 'Easy Mode';
+                    if(x.m === 'full') { cssClass = 'card-full'; prettyName = 'Full Game'; } 
+                    else if (x.m === 'extra') { cssClass = 'card-extra'; prettyName = 'Extra Game'; }
+
+                    list.innerHTML += `
+                    <div class="score-card ${cssClass}">
+                        <div>
+                            <div style="font-size:0.9rem; opacity:0.9;">${prettyName}</div>
+                            <small style="opacity:0.8;">${x.d}</small>
+                        </div>
+                        <h2 style="margin:0; font-size:2rem;">${x.s}</h2>
+                    </div>`;
+                });
+            }
+        }
+
+        function goToMenu() {
+            if (gameState.active) {
+                // Forfeit saves score
+                saveScore(gameState.mode, gameState.score);
+                gameState.active = false;
+                clearTimeout(gameState.timer);
+            }
+            hideAll();
+            document.getElementById('menu-screen').classList.add('active');
+        }
+
+        function hideAll() { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); document.getElementById('modal-overlay').style.display = 'none'; }
+        function closeModal() { goToMenu(); }
+    </script>
+</body>
+</html>
